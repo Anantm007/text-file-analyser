@@ -1,44 +1,62 @@
+/* THE RESPONSE WILL TAKE SOME TIME TO LOAD.
+ * Try it out: http://localhost:3000/tt8785426
+ */
 const express = require("express");
 const app = express();
-var fs = require("fs");
+const fetch = require("node-fetch");
 
-app.get("/", async (req, res) => {
-  var arr = fs.readFileSync("./file.txt").toString().split("\n"); // chats converted to array
+app.get("/:movieId", async (req, res) => {
+  // Initialise suggestedMovies
+  let suggestedMovies = [];
 
-  // FIND FREQUENCY OF A PARTICULAR WORD
-  var x = 0;
-  const word = "you";
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].toString().toLowerCase().includes(word)) x++;
+  // Fetch details of original movie and push it into SUGGESTED MOVIES array only
+  const originalMovie = await getFullDetailOfMovie(req.params.movieId);
+  suggestedMovies.push(originalMovie);
+
+  // Get Id's of suggested movies from heroku
+  const suggestedMoviesPartial = await getSuggestedMoviesId(
+    originalMovie.original_title
+  );
+
+  // Get full details of suggested movies by looping
+  if (suggestedMoviesPartial !== undefined) {
+    await suggestedMoviesPartial.map(async (movie) => {
+      const movieDetail = await getFullDetailOfMovie(movie.Movie_Id);
+      suggestedMovies.push(movieDetail);
+
+      // Returning when array is full. * Do not change the below condition, code might break
+      if (suggestedMovies.length > 18) {
+        /*
+         * IMPORTANT - You have your answer in "suggestedMovies"
+         */
+        return res.status(200).json(suggestedMovies);
+      }
+    });
   }
-
-  // FIND FREQUENCY OF AN EMOJI ALONG WITH TOTAL MESSAGES AND CHARACTERS EXCHANGED
-  let t = 0;
-  t += arr.length;
-  arr = arr.toString();
-
-  var count = (toUni(arr.toString()).match(/1f60d/g) || []).length;
-
-  return res.json({
-    totalMessagesExchanged: t,
-    totalCharactersExchanged: arr.length - t,
-    emoji: "eyes heart",
-    count,
-    specificWord: word,
-    specificWordCount: x,
-  });
 });
 
-// Convert strings to unicode
-const toUni = function (str) {
-  let s = "";
-  for (var i = 0; i < str.length - 1; i++) {
-    s = s + str.codePointAt(i).toString(16) + "-";
-  }
-  return s;
+// Get full details of movie from 3rd party API
+const getFullDetailOfMovie = async (movieId) => {
+  return fetch(
+    `https://api.themoviedb.org/3/movie/${movieId}?&api_key=cfe422613b250f702980a3bbf9e90716`,
+    { method: "GET" }
+  ).then(async (response) => {
+    return response.json();
+  });
 };
 
-// start the server
+// Get Id's of suggested movies from heroku
+const getSuggestedMoviesId = async (title) => {
+  if (title) {
+    return fetch(`https://bioscope-api.herokuapp.com/movie?title=${title}`, {
+      method: "GET",
+    }).then(async (response) => {
+      return response.json();
+    });
+  }
+};
+
+// Start the server
 app.listen(3000, () => {
   console.log("Server started on port 3000");
 });
